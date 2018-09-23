@@ -109,11 +109,9 @@ AppState::Code Zany80::OnInit() {
 	IMUI::Setup();
 	this->tp = Clock::Now();
 #if ORYOL_EMSCRIPTEN
-// prevent massive slowdown via message spamming
-	Log::SetLogLevel(Log::Level::Warn);
 	// some http tests
 	LuaPlugin::constructPlugin("plugins:NonExistent/Deliberate404");
-	LuaPlugin::constructPlugin("http://google.com");
+	LuaPlugin::constructPlugin("https://google.com");
 #endif
 	LuaPlugin::constructPlugin("plugins:DynamicRecompiler/main.lua");
 	return App::OnInit();
