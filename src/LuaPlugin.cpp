@@ -9,7 +9,9 @@
 #include <thread>
 #include <chrono>
 
+#ifndef ORYOL_EMSCRIPTEN
 #include <worker_thread.hpp>
+#endif
 
 String gettype(lua_State *lua, int i) {
 	if (lua_isboolean(lua, i))
@@ -102,9 +104,18 @@ int unpack (lua_State *L) {
 	return n;
 }
 
-LuaPlugin::LuaPlugin(String path) {
+void LuaPlugin::constructPlugin(String path) {
+	IO::Load(path, [path](IO::LoadResult res) {
+		Log::Dbg("Plugin %s loaded. SOURCE %s ENDSOURCE \n", path.AsCStr(), (const char *)res.Data.Data());
+		new LuaPlugin(path, (const char *)res.Data.Data(), res.Data.Size());
+	});
+}
+
+LuaPlugin::LuaPlugin(String path, String source, int size) {
 	this->path = path;
+	#ifndef ORYOL_EMSCRIPTEN
 	this->thread = nullptr;
+	#endif
 	this->frame_stabilizer = nullptr;
 	this->missed_frames = 0;
 	plugins_mutex.lock();
@@ -115,6 +126,8 @@ LuaPlugin::LuaPlugin(String path) {
 	o_assert(this->lua);
 	lua_pushlightuserdata(lua, this);
 	lua_setfield(lua, LUA_REGISTRYINDEX, "Plugin");
+	lua_pushcfunction(lua, luaopen_base);
+	lua_call(lua, 0, 0);
 	lua_pushcfunction(lua, luaopen_string);
 	lua_call(lua, 0, 0);
 	lua_pushcfunction(lua, luaopen_math);
@@ -147,17 +160,9 @@ LuaPlugin::LuaPlugin(String path) {
 	lua_setfield(lua, LUA_REGISTRYINDEX, "Fallback Commands");
 	Lua::ImGui::expose(this->lua);
 	Lua::Oryol::expose(this->lua);
-	Ptr<IORead> request = IO::LoadFile(path);
-	while (!request->Handled) {
-		Core::PreRunLoop()->Run();
-		std::this_thread::sleep_for(std::chrono::milliseconds(60));
-	}
-	if (request->Status != IOStatus::OK) {
-		loadError = true;
-		errorMessage = "Error loading script!";
-		return;
-	}
-	int loaded = luaL_loadbuffer(lua, (const char *)request->Data.Data(), request->Data.Size(), path.AsCStr());
+	if (size == -1)
+		size = source.Length();
+	int loaded = luaL_loadbuffer(lua, source.AsCStr(), size, path.AsCStr());
 	if (loaded != 0) {
 		loadError = true;
 		errorMessage = lua_tostring(lua, -1);
@@ -167,7 +172,6 @@ LuaPlugin::LuaPlugin(String path) {
 		Log::Error("Error: %s\n", lua_tostring(lua, -1));
 		errorMessage = lua_tostring(lua, -1);
 		loadError = true;
-		lua_pop(lua, 1);
 		return;
 	}
 	lua_getglobal(lua, "get_config");
@@ -177,25 +181,28 @@ LuaPlugin::LuaPlugin(String path) {
 		return;
 	}
 	if (lua_pcall(lua, 0, 1, 0)) {
-		String s = lua_tostring(lua, -1);
-		lua_pop(lua, 1);
-		luaL_error(lua, "Lua error: %s", s.AsCStr());
+		errorMessage = lua_tostring(lua, -1);
+		loadError = true;
+		return;
 	}
 	if (!lua_istable(lua, -1)) {
-		lua_pop(lua, 1);
-		luaL_error(lua, "Configuration must be a table!");
+		loadError = true;
+		errorMessage = "Configuration must be a table!";
+		return;
 	}
 	lua_getfield(lua, -1, "wait_frame");
 	if (!lua_isboolean(lua, -1)) {
-		lua_pop(lua, 2);
-		luaL_error(lua, "Configuration must contain a boolean \"wait_frame\"!");
+		loadError = true;
+		errorMessage = "wait_frame must be a boolean!";
+		return;
 	}
 	wait_frame = lua_toboolean(lua, -1);
 	lua_pop(lua, 1);
 	lua_getfield(lua, -1, "name");
 	if (!lua_isstring(lua, -1)) {
-		lua_pop(lua, 2);
-		luaL_error(lua, "Configuration must contain a string \"name\"!");
+		errorMessage = "Configuration must contain a string \"name\"!";
+		loadError = true;
+		return;
 	}
 	name = lua_tostring(lua, -1);
 	lua_pop(lua, 2);
@@ -207,6 +214,7 @@ LuaPlugin::LuaPlugin(String path) {
 	lua_pushcfunction(frame_stabilizer, luaopen_string);
 	lua_call(frame_stabilizer, 0, 0);
 	this->tp = Clock::Now();
+	#ifndef ORYOL_EMSCRIPTEN
 	thread = new worker_thread([this]() {
 		lua_getglobal(this->lua, "frame");
 		lua_pushnumber(this->lua, Clock::LapTime(this->tp).AsMilliSeconds());
@@ -218,6 +226,7 @@ LuaPlugin::LuaPlugin(String path) {
 		}
 		this->thread->pause();
 	}, false);
+	#endif
 }
 
 LuaPlugin::~LuaPlugin() {
@@ -225,20 +234,24 @@ LuaPlugin::~LuaPlugin() {
 	 * in the constructor, it's nullptr. As such, an assertion would cause an
 	 * unwanted crash here, and checking IsValid() would not always be correct.
 	 */
+	#ifndef ORYOL_EMSCRIPTEN
 	if (thread != nullptr) {
 		thread->finalize();
 	}
+	#endif
 	o_assert(this->lua);
 	int index = plugins.FindIndexLinear(this);
 	o_assert(index != InvalidIndex);
 	plugins_mutex.lock();
 	plugins.Erase(index);
 	plugins_mutex.unlock();
+	#ifndef ORYOL_EMSCRIPTEN
 	if (thread != nullptr) {
 		// The destructor calls wait(), no reason to call it here
 		delete thread;
 		thread = nullptr;
 	}
+	#endif
 	lua_getglobal(this->lua, "cleanup");
 	if (lua_pcall(this->lua, 0, 0, 0))
 		Log::Error("Error in plugin cleanup: %s\n", lua_tostring(this->lua, -1));
@@ -251,9 +264,11 @@ LuaPlugin::~LuaPlugin() {
 }
 
 int LuaPlugin::countEmittedFunctions() {
+	#ifndef ORYOL_EMSCRIPTEN
 	o_assert(this->thread);
 	if (thread->running())
 		return function_names.Size();
+	#endif
 	o_assert(this->lua);
 	lua_getfield(this->lua, LUA_REGISTRYINDEX, "Emitted Functions");
 	o_assert(lua_istable(lua, -1));
@@ -263,10 +278,11 @@ int LuaPlugin::countEmittedFunctions() {
 }
 
 String LuaPlugin::getEmittedFunctionName(int i) {
+	#ifndef ORYOL_EMSCRIPTEN
 	o_assert_dbg(this->thread);
 	if (thread->running())
 		return function_names.Size() > (i-1) ? function_names[i-1] : "Out of bounds";
-		//~ return "Cannot retrieve function name while the thread is executing.";
+	#endif
 	o_assert_dbg(this->lua);
 	lua_getfield(this->lua, LUA_REGISTRYINDEX, "Emitted Function Names");
 	o_assert_dbg(lua_istable(lua, -1));
@@ -283,6 +299,7 @@ int LuaPlugin::getMissedFrames() {
 }
 
 void LuaPlugin::executeEmittedFunctions() {
+	#ifndef ORYOL_EMSCRIPTEN
 	o_assert(this->thread);
 	// If thread is still running, abort
 	if (this->thread->running()) {
@@ -300,6 +317,7 @@ void LuaPlugin::executeEmittedFunctions() {
 			return;
 		}
 	}
+	#endif
 	o_assert(this->lua);
 	lua_getfield(this->lua, LUA_REGISTRYINDEX, "Emitted Functions");
 	o_assert(lua_istable(lua, -1));
@@ -360,6 +378,16 @@ String LuaPlugin::error() {
 }
 
 void LuaPlugin::frame() {
+	#if ORYOL_EMSCRIPTEN
+	lua_getglobal(this->lua, "frame");
+	lua_pushnumber(this->lua, Clock::LapTime(this->tp).AsMilliSeconds());
+	if (lua_pcall(this->lua, 1, 0, 0)) {
+		Log::Error("Error: %s\n", lua_tostring(this->lua, -1));
+		this->loadError = true;
+		this->errorMessage = lua_tostring(this->lua, -1);
+		lua_pop(this->lua, 1);
+	}
+	#else
 	o_assert(this->thread);
 	if (!this->thread->running()) {
 		lua_getfield(this->lua, LUA_REGISTRYINDEX, "Emitted Functions");
@@ -369,6 +397,7 @@ void LuaPlugin::frame() {
 		if (play)
 			this->thread->play();
 	}
+	#endif
 }
 
 String LuaPlugin::getPath() {

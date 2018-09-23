@@ -24,7 +24,7 @@ namespace Lua {
 		
 		#define ImGui ::ImGui
 		
-		Map<const lua_State *,String> windows;
+		Map<const lua_State *,String> windows{};
 		
 		bool verifyOwnership(lua_State *lua, String window) {
 			bool found = false;
@@ -61,8 +61,6 @@ namespace Lua {
 		}
 		
 		int requestWindow(lua_State *lua) {
-			static std::mutex mutex;
-			std::lock_guard<std::mutex> guard(mutex);
 			if (lua_gettop(lua) != 1) {
 				return luaL_error(lua, "Invalid number of arguments: %d", lua_gettop(lua));
 			}
@@ -134,7 +132,7 @@ namespace Lua {
 			lua_call(lua, lua_gettop(lua) - 1, 1);
 			// Only thing still on stack is formatted text
 			Log::Dbg("Text: %s\n", lua_tostring(lua, 1));
-			ImGui::Text(lua_tostring(lua, 1));
+			ImGui::Text("%s",lua_tostring(lua, 1));
 			return 0;
 		}
 		
@@ -143,7 +141,7 @@ namespace Lua {
 			// Create the ImGui table
 			lua_newtable(lua);
 			// Pop it from the stack and name it ImGui
-			lua_setglobal(lua, "ImGui");
+			lua_setfield(lua, LUA_GLOBALSINDEX, "ImGui");
 			// Put it back on the stack so we can work with it
 			lua_getglobal(lua, "ImGui");
 			lua_pushcfunction(lua, begin);

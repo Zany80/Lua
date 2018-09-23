@@ -6,7 +6,11 @@
 #include <lua.hpp>
 #include <LuaImGuiBindings.hpp>
 
+#ifndef ORYOL_EMSCRIPTEN
 #include <worker_thread.hpp>
+#endif
+
+#include <mutex>
 
 using namespace Oryol;
 
@@ -18,10 +22,9 @@ public:
 	 * to online plugins or those in a custom location, even embedded into the
 	 * application or directly from RAM!
 	 * 
-	 * It's highly recommended that you construct all plugins in parallel on a
-	 * 
 	 */
-	LuaPlugin(String path);
+	LuaPlugin(String path, String source, int size = -1);
+	static void constructPlugin(String path);
 	~LuaPlugin();
 	bool IsValid();
 	bool isRunning();
@@ -39,7 +42,9 @@ private:
 	TimePoint tp;
 	lua_State *lua, *frame_stabilizer;
 	Array<String> emitted_functions, function_names;
+	#ifndef ORYOL_EMSCRIPTEN
 	worker_thread *thread;
+	#endif
 	bool loadError;
 	String errorMessage;
 	String path, name;

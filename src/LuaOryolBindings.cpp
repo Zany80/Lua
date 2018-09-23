@@ -37,7 +37,7 @@ namespace Lua {
 				return 0;
 			});
 			lua_setfield(lua, -2, "Dbg");
-			lua_setglobal(lua, "Log");
+			lua_setfield(lua, LUA_GLOBALSINDEX, "Log");
 		}
 		
 		#undef Oryol

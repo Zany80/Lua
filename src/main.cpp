@@ -6,7 +6,11 @@
 #include <IMUI/IMUI.h>
 #include <Input/Input.h>
 #include <IO/IO.h>
+#if ORYOL_EMSCRIPTEN
+#include <HttpFS/HTTPFileSystem.h>
+#else
 #include <LocalFS/LocalFileSystem.h>
+#endif
 #if (ORYOL_D3D11 || ORYOL_METAL)
 #elif (ORYOL_WINDOWS || ORYOL_MACOS || ORYOL_LINUX)
 #include <GLFW/glfw3.h>
@@ -28,7 +32,7 @@ public:
 	AppState::Code OnInit();
 	AppState::Code OnRunning();
 	AppState::Code OnCleanup();
-	void warn(const char *msg);
+	//void warn(const char *msg);
 private:
 	void ToggleFullscreen();
 	bool fullscreen;
@@ -40,7 +44,7 @@ OryolMain(Zany80);
 
 void Zany80::ToggleFullscreen() {
 #if (ORYOL_D3D11 || ORYOL_METAL)
-	this->warn("Fullscreen mode is not supported on your platform.");
+	//this->warn("Fullscreen mode is not supported on your platform.");
 #elif (ORYOL_WINDOWS || ORYOL_MACOS || ORYOL_LINUX)
 	this->fullscreen = !this->fullscreen;
 	int monitor_count;
@@ -58,14 +62,18 @@ void Zany80::ToggleFullscreen() {
 		glfwSetWindowMonitor(Oryol::_priv::glfwDisplayMgr::glfwWindow, NULL, windowed_position.x, windowed_position.y, windowed_position.z, windowed_position.w, mode->refreshRate);
 	}
 #else
-	this->warn("Fullscreen mode is not supported on your platform.");
+	//this->warn("Fullscreen mode is not supported on your platform.");
 #endif
 }
 
 AppState::Code Zany80::OnInit() {
 	this->fullscreen = false;
 	IOSetup ioSetup;
+#if ORYOL_EMSCRIPTEN
+	ioSetup.FileSystems.Add("http", HTTPFileSystem::Creator());
+#else
 	ioSetup.FileSystems.Add("file", LocalFileSystem::Creator());
+#endif
 	IO::Setup(ioSetup);
 	Gfx::Setup(GfxSetup::WindowMSAA4(800, 600, "Zany80 (Lua Edition) v" PROJECT_VERSION));
 #if (ORYOL_D3D11 || ORYOL_METAL)
@@ -87,14 +95,19 @@ AppState::Code Zany80::OnInit() {
 		s.Append("/");
 		IO::SetAssign("root:", s.GetString());
 	}
+#elif ORYOL_EMSCRIPTEN
+	IO::SetAssign("root:", "http://zany80.github.io/lua/emscripten/");
 #endif
 	IO::SetAssign("plugins:", "root:plugins/");
 	Log::Dbg("Application URL: %s\n", IO::ResolveAssigns("root:").AsCStr());
 	Log::Dbg("Plugin URL: %s\n", IO::ResolveAssigns("plugins:").AsCStr());
 	Input::Setup();
 	IMUI::Setup();
-	new LuaPlugin("plugins:DynamicRecompiler/main.lua");
 	this->tp = Clock::Now();
+#if ORYOL_EMSCRIPTEN
+	Log::SetLogLevel(Log::Level::Warn);
+#endif
+	LuaPlugin::constructPlugin("plugins:DynamicRecompiler/main.lua");
 	return App::OnInit();
 }
 
@@ -119,7 +132,7 @@ AppState::Code Zany80::OnRunning() {
 	if(ImGui::Button("Debug"))
 		Log::SetLogLevel(Log::Level::Dbg);
 	ImGui::End();
-	for (int i = 0; i < plugins.Size(); i++) {
+	for (unsigned char i = 0; i < plugins.Size() && i < 255; i++) {
 		char buf[16];
 		sprintf(buf, "Plugin %d", i);
 		ImGui::Begin(buf);
@@ -141,7 +154,7 @@ AppState::Code Zany80::OnRunning() {
 				plugins[i]->executeEmittedFunctions();
 			delete plugins[i];
 			Log::Dbg("Resetting plugin %d out of %d\n", i + 1, plugins.Size() + 1);
-			new LuaPlugin(path);
+			LuaPlugin::constructPlugin(path);
 		}
 		ImGui::End();
 		if (plugins[i] -> IsValid())
