@@ -4,4 +4,5 @@ imports:
     oryol-imgui:
             git: https://github.com/floooh/oryol-imgui.git
     lua:
-            git: https://github.com/floooh/fips-lua.git
+            git: https://github.com/zany80/fips-lua.git
+            branch: 5.1
