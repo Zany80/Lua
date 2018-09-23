@@ -4,7 +4,7 @@ get_filename_component(FIPS_ROOT_DIR "./build/fips" ABSOLUTE)
 include("${FIPS_ROOT_DIR}/cmake/fips.cmake")
 
 fips_setup(PROJECT Zany80_Lua)
-project(Zany80_Lua VERSION 0.0.1.2)
+project(Zany80_Lua VERSION 0.0.1.3)
 
 if(FIPS_WINDOWS)
   ENABLE_LANGUAGE(RC)

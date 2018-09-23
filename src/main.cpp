@@ -70,7 +70,7 @@ AppState::Code Zany80::OnInit() {
 	this->fullscreen = false;
 	IOSetup ioSetup;
 #if ORYOL_EMSCRIPTEN
-	ioSetup.FileSystems.Add("http", HTTPFileSystem::Creator());
+	ioSetup.FileSystems.Add("https", HTTPFileSystem::Creator());
 #else
 	ioSetup.FileSystems.Add("file", LocalFileSystem::Creator());
 #endif
@@ -97,9 +97,9 @@ AppState::Code Zany80::OnInit() {
 	}
 #elif ORYOL_EMSCRIPTEN
 #ifdef FIPS_EMSCRIPTEN_USE_WASM
-	IO::SetAssign("root:", "http://zany80.github.io/lua/wasm/");
+	IO::SetAssign("root:", "https://zany80.github.io/lua/wasm/");
 #else
-	IO::SetAssign("root:", "http://zany80.github.io/lua/emscripten/");
+	IO::SetAssign("root:", "https://zany80.github.io/lua/emscripten/");
 #endif
 #endif
 	IO::SetAssign("plugins:", "root:plugins/");
@@ -109,7 +109,11 @@ AppState::Code Zany80::OnInit() {
 	IMUI::Setup();
 	this->tp = Clock::Now();
 #if ORYOL_EMSCRIPTEN
+// prevent massive slowdown via message spamming
 	Log::SetLogLevel(Log::Level::Warn);
+	// some http tests
+	LuaPlugin::constructPlugin("plugins:NonExistent/Deliberate404");
+	LuaPlugin::constructPlugin("http://google.com");
 #endif
 	LuaPlugin::constructPlugin("plugins:DynamicRecompiler/main.lua");
 	return App::OnInit();
