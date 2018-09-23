@@ -112,6 +112,8 @@ void LuaPlugin::constructPlugin(String path) {
 	IO::Load(path, [path](IO::LoadResult res) {
 		Log::Dbg("Plugin %s loaded. SOURCE %s ENDSOURCE \n", path.AsCStr(), (const char *)res.Data.Data());
 		new LuaPlugin(path, (const char *)res.Data.Data(), res.Data.Size());
+	}, [](const URL& url, IOStatus::Code ioStatus) {
+		Log::Error("Error code %d loading %s", ioStatus, url.AsCStr());
 	});
 }
 

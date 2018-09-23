@@ -69,13 +69,15 @@ void Zany80::ToggleFullscreen() {
 AppState::Code Zany80::OnInit() {
 	this->fullscreen = false;
 	IOSetup ioSetup;
+	GfxSetup gfxSetup = GfxSetup::WindowMSAA4(800, 600, "Zany80 (Lua Edition) v" PROJECT_VERSION);
 #if ORYOL_EMSCRIPTEN
 	ioSetup.FileSystems.Add("https", HTTPFileSystem::Creator());
+	gfxSetup.HtmlTrackElementSize = true;
 #else
 	ioSetup.FileSystems.Add("file", LocalFileSystem::Creator());
 #endif
 	IO::Setup(ioSetup);
-	Gfx::Setup(GfxSetup::WindowMSAA4(800, 600, "Zany80 (Lua Edition) v" PROJECT_VERSION));
+	Gfx::Setup(gfxSetup);
 #if (ORYOL_D3D11 || ORYOL_METAL)
 #elif (ORYOL_WINDOWS || ORYOL_MACOS || ORYOL_LINUX)
 	glfwSetWindowIcon(Oryol::_priv::glfwDisplayMgr::glfwWindow, 1, &icon);
@@ -124,8 +126,10 @@ AppState::Code Zany80::OnRunning() {
 	ImGui::Text("Zany80 version: " PROJECT_VERSION);
 	ImGui::Text("Framerate: %.1f", ImGui::GetIO().Framerate);
 	ImGui::Text("%d plugins", plugins.Size());
+	#ifndef ORYOL_EMSCRIPTEN
 	if (ImGui::Button("Toggle fullscreen"))
 		this->ToggleFullscreen();
+	#endif
 	ImGui::Text("Log level: %d", (int)Log::GetLogLevel());
 	if(ImGui::Button("Mute"))
 		Log::SetLogLevel(Log::Level::None);
