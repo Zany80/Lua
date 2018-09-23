@@ -9,8 +9,7 @@ function get_config()
 end
 
 success, title = ImGui.RequestWindow("Hello!")
-print("Window request: succeeded="..(success and "true" or "false")..",title="..title)
---~ if not success then error("Unable to claim window! E: "..title)end
+if not success then print(title) error("Unable to claim window!")end
 
 total_time = 0
 frames = 0

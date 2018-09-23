@@ -4,3 +4,4 @@
 #define str(x) _str(x)
 
 #cmakedefine PROJECT_VERSION str(@PROJECT_VERSION@)
+#cmakedefine FIPS_EMSCRIPTEN_USE_WASM @FIPS_EMSCRIPTEN_USE_WASM@

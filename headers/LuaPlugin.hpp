@@ -40,16 +40,17 @@ public:
 private:
 	friend bool Lua::ImGui::verifyOwnership(lua_State *lua, String window);
 	TimePoint tp;
-	lua_State *lua, *frame_stabilizer;
-	Array<String> emitted_functions, function_names;
+	lua_State *lua;
 	#ifndef ORYOL_EMSCRIPTEN
+	lua_State *frame_stabilizer;
+	Array<String> emitted_functions, function_names;
 	worker_thread *thread;
+	int missed_frames;
+	bool wait_frame;
 	#endif
 	bool loadError;
 	String errorMessage;
 	String path, name;
-	int missed_frames;
-	bool wait_frame;
 };
 
 extern Array<LuaPlugin*> plugins; 

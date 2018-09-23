@@ -81,6 +81,11 @@ namespace Lua {
 			char buf[128];
 			sprintf(buf, "%s (%s)##0x%016llX", lua_tostring(lua, 1), lua_tostring(lua, -1), (unsigned long long)lua);
 			String window = buf;
+			#if ORYOL_EMSCRIPTEN
+			Log::Dbg("Window %s claimed.\n", window.AsCStr());
+			lua_pushboolean(lua, true);
+			lua_pushstring(lua, window.AsCStr());
+			#else
 			if (isOwned(window)) {
 				lua_pushboolean(lua, false);
 				lua_pushstring(lua, "No need to call this function twice!");
@@ -91,6 +96,7 @@ namespace Lua {
 				lua_pushboolean(lua, true);
 				lua_pushstring(lua, window.AsCStr());
 			}
+			#endif
 			return 2;
 		}
 		

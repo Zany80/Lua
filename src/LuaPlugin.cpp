@@ -67,7 +67,11 @@ String LuaPlugin::getName() {
 }
 
 bool LuaPlugin::getWaitFrame() {
+	#ifdef ORYOL_EMSCRIPTEN
+	return false;
+	#else
 	return wait_frame;
+	#endif
 }
 
 constexpr const char *bind_string = 
@@ -115,9 +119,9 @@ LuaPlugin::LuaPlugin(String path, String source, int size) {
 	this->path = path;
 	#ifndef ORYOL_EMSCRIPTEN
 	this->thread = nullptr;
-	#endif
 	this->frame_stabilizer = nullptr;
 	this->missed_frames = 0;
+	#endif
 	plugins_mutex.lock();
 	plugins.Add(this);
 	plugins_mutex.unlock();
@@ -190,6 +194,7 @@ LuaPlugin::LuaPlugin(String path, String source, int size) {
 		errorMessage = "Configuration must be a table!";
 		return;
 	}
+	#ifndef ORYOL_EMSCRIPTEN
 	lua_getfield(lua, -1, "wait_frame");
 	if (!lua_isboolean(lua, -1)) {
 		loadError = true;
@@ -198,6 +203,7 @@ LuaPlugin::LuaPlugin(String path, String source, int size) {
 	}
 	wait_frame = lua_toboolean(lua, -1);
 	lua_pop(lua, 1);
+	#endif
 	lua_getfield(lua, -1, "name");
 	if (!lua_isstring(lua, -1)) {
 		errorMessage = "Configuration must contain a string \"name\"!";
@@ -206,6 +212,7 @@ LuaPlugin::LuaPlugin(String path, String source, int size) {
 	}
 	name = lua_tostring(lua, -1);
 	lua_pop(lua, 2);
+	#ifndef ORYOL_EMSCRIPTEN
 	frame_stabilizer = luaL_newstate();
 	o_assert(this->frame_stabilizer);
 	lua_pushlightuserdata(frame_stabilizer, this);
@@ -213,8 +220,6 @@ LuaPlugin::LuaPlugin(String path, String source, int size) {
 	Lua::ImGui::expose(frame_stabilizer);
 	lua_pushcfunction(frame_stabilizer, luaopen_string);
 	lua_call(frame_stabilizer, 0, 0);
-	this->tp = Clock::Now();
-	#ifndef ORYOL_EMSCRIPTEN
 	thread = new worker_thread([this]() {
 		lua_getglobal(this->lua, "frame");
 		lua_pushnumber(this->lua, Clock::LapTime(this->tp).AsMilliSeconds());
@@ -227,6 +232,7 @@ LuaPlugin::LuaPlugin(String path, String source, int size) {
 		this->thread->pause();
 	}, false);
 	#endif
+	this->tp = Clock::Now();
 }
 
 LuaPlugin::~LuaPlugin() {
@@ -257,10 +263,12 @@ LuaPlugin::~LuaPlugin() {
 		Log::Error("Error in plugin cleanup: %s\n", lua_tostring(this->lua, -1));
 	lua_close(this->lua);
 	this->lua = nullptr;
+	#ifndef ORYOL_EMSCRIPTEN
 	if (frame_stabilizer != nullptr) {
 		lua_close(frame_stabilizer);
 		frame_stabilizer = nullptr;
 	}
+	#endif
 }
 
 int LuaPlugin::countEmittedFunctions() {
@@ -295,7 +303,11 @@ String LuaPlugin::getEmittedFunctionName(int i) {
 }
 
 int LuaPlugin::getMissedFrames() {
+	#if ORYOL_EMSCRIPTEN
+	return 0;
+	#else
 	return missed_frames;
+	#endif
 }
 
 void LuaPlugin::executeEmittedFunctions() {
@@ -335,6 +347,7 @@ void LuaPlugin::executeEmittedFunctions() {
 	}
 	o_assert(lua_objlen(lua, -1) == 0);
 	lua_pop(lua, 1);
+	#ifndef ORYOL_EMSCRIPTEN
 	// Copy over the previously emitted functions
 	emitted_functions.Clear();
 	lua_getfield(lua, LUA_REGISTRYINDEX, "Fallback Commands");
@@ -367,6 +380,7 @@ void LuaPlugin::executeEmittedFunctions() {
 	}
 	o_assert(lua_objlen(lua, -1) == 0);
 	lua_pop(lua, 1);
+	#endif
 }
 
 bool LuaPlugin::IsValid() {

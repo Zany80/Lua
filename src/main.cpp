@@ -96,7 +96,11 @@ AppState::Code Zany80::OnInit() {
 		IO::SetAssign("root:", s.GetString());
 	}
 #elif ORYOL_EMSCRIPTEN
+#ifdef FIPS_EMSCRIPTEN_USE_WASM
+	IO::SetAssign("root:", "http://zany80.github.io/lua/wasm/");
+#else
 	IO::SetAssign("root:", "http://zany80.github.io/lua/emscripten/");
+#endif
 #endif
 	IO::SetAssign("plugins:", "root:plugins/");
 	Log::Dbg("Application URL: %s\n", IO::ResolveAssigns("root:").AsCStr());
