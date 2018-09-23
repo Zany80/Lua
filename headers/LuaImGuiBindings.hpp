@@ -5,8 +5,8 @@ using namespace Oryol;
 
 #include <lua.hpp>
 
-namespace ImGui {
-	namespace Lua {
+namespace Lua {
+	namespace ImGui {
 		/**
 		 * @brief Load ImGui Lua bindings into the Lua instance.
 		 * 
@@ -51,8 +51,13 @@ namespace ImGui {
 		 */
 		int begin(lua_State *lua);
 		/**
-		 * This function wraps around ImGui::End. It first makes sure that 
+		 * This function wraps around ImGui::End.
 		 */
-		int begin(lua_State *lua);
+		int end(lua_State *lua);
+		/**
+		 * This function wraps around ImGui::Text
+		 */
+		int text(lua_State *lua);
+		extern int ends_required;
 	}
 }

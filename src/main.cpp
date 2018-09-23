@@ -13,8 +13,13 @@
 #include <glfw_icon.h>
 #endif
 
+#include <thread>
+#include <chrono>
+
 #include <lua.hpp>
 #include <LuaPlugin.hpp>
+#include <LuaImGuiBindings.hpp>
+#include <config.h>
 
 using namespace Oryol;
 
@@ -62,7 +67,7 @@ AppState::Code Zany80::OnInit() {
 	IOSetup ioSetup;
 	ioSetup.FileSystems.Add("file", LocalFileSystem::Creator());
 	IO::Setup(ioSetup);
-	Gfx::Setup(GfxSetup::WindowMSAA4(800, 600, "Zany80 (Lua Edition)"));
+	Gfx::Setup(GfxSetup::WindowMSAA4(800, 600, "Zany80 (Lua Edition) v" PROJECT_VERSION));
 #if (ORYOL_D3D11 || ORYOL_METAL)
 #elif (ORYOL_WINDOWS || ORYOL_MACOS || ORYOL_LINUX)
 	glfwSetWindowIcon(Oryol::_priv::glfwDisplayMgr::glfwWindow, 1, &icon);
@@ -88,23 +93,82 @@ AppState::Code Zany80::OnInit() {
 	Log::Dbg("Plugin URL: %s\n", IO::ResolveAssigns("plugins:").AsCStr());
 	Input::Setup();
 	IMUI::Setup();
-	new LuaPlugin("test");
+	new LuaPlugin("plugins:DynamicRecompiler/main.lua");
+	this->tp = Clock::Now();
 	return App::OnInit();
 }
 
 AppState::Code Zany80::OnRunning() {
 	Gfx::BeginPass(PassAction::Clear(glm::vec4(0.1f, 0.8f, 0.6f, 1.0f)));
 	IMUI::NewFrame(Clock::LapTime(this->tp));
-	ImGui::Text("%d emitted functions", plugins[0]->countEmittedFunctions());
-	//~ if (ImGui::Button("Execute?"))
-		plugins[0]->executeEmittedFunctions();
+	ImGui::Begin("Hub");
+	ImGui::Text("Zany80 version: " PROJECT_VERSION);
+	ImGui::Text("Framerate: %.1f", ImGui::GetIO().Framerate);
+	ImGui::Text("%d plugins", plugins.Size());
+	if (ImGui::Button("Toggle fullscreen"))
+		this->ToggleFullscreen();
+	ImGui::Text("Log level: %d", (int)Log::GetLogLevel());
+	if(ImGui::Button("Mute"))
+		Log::SetLogLevel(Log::Level::None);
+	if(ImGui::Button("Error"))
+		Log::SetLogLevel(Log::Level::Error);
+	if(ImGui::Button("Warn"))
+		Log::SetLogLevel(Log::Level::Warn);
+	if(ImGui::Button("Info"))
+		Log::SetLogLevel(Log::Level::Info);
+	if(ImGui::Button("Debug"))
+		Log::SetLogLevel(Log::Level::Dbg);
+	ImGui::End();
+	for (int i = 0; i < plugins.Size(); i++) {
+		char buf[16];
+		sprintf(buf, "Plugin %d", i);
+		ImGui::Begin(buf);
+		ImGui::Text("Valid: %s", plugins[i] -> IsValid() ? "True" : "False");
+		ImGui::Text("Path: %s", plugins[i] -> getPath().AsCStr());
+		ImGui::Text("Missed frames: %d", plugins[i] -> getMissedFrames());
+		if (plugins[i] -> IsValid()) {
+			ImGui::Text("Emitted functions: %d", plugins[i]->countEmittedFunctions());
+			for (int j = 1; j <= plugins[i]->countEmittedFunctions(); j++) {
+				ImGui::Text("Function %d: %s", j, plugins[i] -> getEmittedFunctionName(j).AsCStr());
+			}
+		}
+		else
+			ImGui::Text("Error message: %s", plugins[i]->error().AsCStr());
+		if (ImGui::Button("Reload")) {
+			String path = plugins[i]->getPath();
+			if (plugins[i]->IsValid())
+				// clear the queue
+				plugins[i]->executeEmittedFunctions();
+			delete plugins[i];
+			Log::Dbg("Resetting plugin %d out of %d\n", i + 1, plugins.Size() + 1);
+			new LuaPlugin(path);
+		}
+		ImGui::End();
+		if (plugins[i] -> IsValid())
+			plugins[i]->executeEmittedFunctions();
+	}
+	if (Lua::ImGui::ends_required) {
+		ImGui::Begin("Error!");
+		ImGui::Text("Missed %d ImGui.End calls!\n", Lua::ImGui::ends_required);
+		ImGui::End();
+		Log::Warn("Missed %d ImGui.End calls!\n", Lua::ImGui::ends_required);
+	}
+	for (; Lua::ImGui::ends_required > 0; Lua::ImGui::ends_required--)
+		ImGui::End();
 	ImGui::Render();
+	for (LuaPlugin *p : plugins)
+		if (p->IsValid())
+			p->frame();
 	Gfx::EndPass();
 	Gfx::CommitFrame();
 	return Gfx::QuitRequested() ? AppState::Cleanup : AppState::Running;
 }
 
 AppState::Code Zany80::OnCleanup() {
+	for (int i = 0; i < plugins.Size(); i++) {
+		delete plugins[i];
+	}
+	plugins.Clear();
 	IMUI::Discard();
 	Input::Discard();
 	Gfx::Discard();

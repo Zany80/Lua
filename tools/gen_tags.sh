@@ -43,6 +43,7 @@ fi
 if [[ "$REPLY" = "y" || "$REPLY" = "local_only" ]]
 then
 	CFLAGS="$flags" find /usr/local/include -type f -name "*.hpp" -or -name "*.h" -exec bash -c 'echo Appending {}...;geany -g zany80_deps.cpp.tags.3 {};cat zany80_deps.cpp.tags.{2,3} >> zany80_deps.cpp.tags.4;mv zany80_deps.cpp.tags.{4,2}' \;
+	rm zany80_deps.cpp.tags.3
 fi
-cat zany80_deps.cpp.tags.{1,2,3} | uniq > zany80_deps.cpp.tags
-rm zany80_deps.cpp.tags.{1,2,3}
+cat zany80_deps.cpp.tags.{1..2} | uniq > zany80_deps.cpp.tags
+rm zany80_deps.cpp.tags.{1..2}

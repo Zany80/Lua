@@ -4,6 +4,7 @@ get_filename_component(FIPS_ROOT_DIR "./build/fips" ABSOLUTE)
 include("${FIPS_ROOT_DIR}/cmake/fips.cmake")
 
 fips_setup(PROJECT Zany80_Lua)
+project(Zany80_Lua VERSION 0.0.1.0)
 
 if(FIPS_WINDOWS)
   ENABLE_LANGUAGE(RC)
@@ -17,8 +18,9 @@ if (NOT DEFINED LUA_JIT)
 	set(LUA_JIT FALSE CACHE BOOL "")
 endif()
 
-fips_include_directories("${PROJECT_SOURCE_DIR}/headers" "${CMAKE_BINARY_DIR}")
+fips_include_directories("${PROJECT_SOURCE_DIR}/headers" "${PROJECT_BINARY_DIR}")
 
+configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 fips_begin_app(zany80 windowed)
 fips_deps(Gfx IMUI LocalFS)
 if (LUA_JIT)

@@ -1,8 +1,12 @@
 #pragma once
 
+#include <Core/Time/Clock.h>
 #include <Core/Containers/Array.h>
 #include <Core/String/String.h>
 #include <lua.hpp>
+#include <LuaImGuiBindings.hpp>
+
+#include <worker_thread.hpp>
 
 using namespace Oryol;
 
@@ -19,10 +23,29 @@ public:
 	 */
 	LuaPlugin(String path);
 	~LuaPlugin();
+	bool IsValid();
+	bool isRunning();
+	String error();
+	String getPath();
+	String getEmittedFunctionName(int i);
+	void frame();
 	int countEmittedFunctions();
 	void executeEmittedFunctions();
+	String getName();
+	bool getWaitFrame();
+	int getMissedFrames();
 private:
-	lua_State *lua;
+	friend bool Lua::ImGui::verifyOwnership(lua_State *lua, String window);
+	TimePoint tp;
+	lua_State *lua, *frame_stabilizer;
+	Array<String> emitted_functions, function_names;
+	worker_thread *thread;
+	bool loadError;
+	String errorMessage;
+	String path, name;
+	int missed_frames;
+	bool wait_frame;
 };
 
 extern Array<LuaPlugin*> plugins; 
+extern std::mutex plugins_mutex, renderer_mutex;
